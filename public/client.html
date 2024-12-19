@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Realtime API WebRTC</title>
+</head>
+<body>
+  <h1>OpenAI Realtime API with WebRTC</h1>
+  <button id="startBtn">Start Session</button>
+  <button id="stopBtn" disabled>Stop Session</button>
+  <input type="text" id="eventTextInput" placeholder="Enter event text" disabled>
+  <button id="sendEventBtn" disabled>Send Event</button>
+  <p id="status">Status: Not connected</p>
+  <div id="eventsContainer"></div>
+  <script>
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    const statusEl = document.getElementById("status");
+
+    let pc; // WebRTC PeerConnection
+    let dataChannel; // WebRTC Data Channel
+    let localStream;
+
+    async function init() {
+      try {
+        statusEl.textContent = "Fetching session...";
+        // Step 1: Fetch ephemeral key from server
+        const tokenResponse = await fetch("http://localhost:3000/session");
+        const data = await tokenResponse.json();
+        const EPHEMERAL_KEY = data.client_secret.value;
+
+        // Step 2: Set up WebRTC connection
+        pc = new RTCPeerConnection();
+
+        // Handle remote audio track
+        const audioEl = document.createElement("audio");
+        audioEl.autoplay = true;
+        pc.ontrack = (e) => audioEl.srcObject = e.streams[0];
+        document.body.appendChild(audioEl);
+
+        // Step 3: Capture user audio
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        pc.addTrack(localStream.getTracks()[0]);
+
+        // Step 4: Create Data Channel for sending/receiving messages
+        dataChannel = pc.createDataChannel("oai-events");
+
+        // Create a container for displaying events
+        const eventsContainer = document.createElement("div");
+        eventsContainer.id = "eventsContainer";
+        document.body.appendChild(eventsContainer);
+
+        dataChannel.addEventListener("message", (e) => {
+          const realtimeEvent = JSON.parse(e.data);
+          console.log("Received event:", realtimeEvent);
+
+          // Filter out unwanted events
+          if (realtimeEvent.type === "response.audio_transcript.delta") {
+            return; // Skip displaying this event
+          }
+
+          // Display the event on the page at the top
+          const eventElement = document.createElement("p");
+          eventElement.textContent = `Received event: ${JSON.stringify(realtimeEvent)}`;
+          eventsContainer.insertBefore(eventElement, eventsContainer.firstChild);
+        });
+
+        // Step 5: SDP Negotiation
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        const model = "gpt-4o-realtime-preview-2024-12-17";
+        const baseUrl = "https://api.openai.com/v1/realtime";
+
+        const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
+          method: "POST",
+          body: offer.sdp,
+          headers: {
+            Authorization: `Bearer ${EPHEMERAL_KEY}`,
+            "Content-Type": "application/sdp",
+          },
+        });
+
+        const answer = { type: "answer", sdp: await sdpResponse.text() };
+        await pc.setRemoteDescription(answer);
+
+        statusEl.textContent = "Connected to Realtime API!";
+      } catch (err) {
+        console.error("Error initializing connection:", err);
+        statusEl.textContent = "Error connecting!";
+      }
+    }
+
+    function startRecording() {
+      init();
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      sendEventBtn.disabled = false;
+      document.getElementById("eventTextInput").disabled = false;
+    }
+
+    function stopRecording() {
+      // Clean up WebRTC connection
+      if (pc) {
+        pc.close();
+        pc = null;
+      }
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      statusEl.textContent = "Connection closed.";
+      startBtn.disabled = false;
+      stopBtn.disabled = true;
+      sendEventBtn.disabled = true;
+      document.getElementById("eventTextInput").disabled = true;
+    }
+
+    // Button Event Listeners
+    startBtn.addEventListener("click", startRecording);
+    stopBtn.addEventListener("click", stopRecording);
+
+    const sendEventBtn = document.getElementById("sendEventBtn");
+    sendEventBtn.addEventListener("click", () => {
+      const eventTextInput = document.getElementById("eventTextInput").value;
+      if (dataChannel && dataChannel.readyState === "open") {
+        const clientEvent = {
+          event_id: "event_345",
+          type: "conversation.item.create",
+          previous_item_id: null,
+          item: {
+            id: "msg_001",
+            type: "message",
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: eventTextInput
+              }
+            ]
+          }
+        };
+        dataChannel.send(JSON.stringify(clientEvent));
+        console.log("Client event sent with text:", eventTextInput);
+      } else {
+        console.error("Data channel is not open");
+      }
+    });
+  </script>
+</body>
+</html>

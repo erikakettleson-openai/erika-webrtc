@@ -1,0 +1,15 @@
+#uploadedImage {
+  margin: 20px auto; /* Center horizontally */
+  display: block;
+  max-width: 80%;
+  border: 2px solid #ddd;
+  border-radius: 5px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+#imageContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column; /* Optional for vertical alignment */
+}

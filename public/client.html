@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="styles.css">
   <title>Realtime API WebRTC</title>
 </head>
 <body>
@@ -12,7 +13,7 @@
   <input type="text" id="eventTextInput" placeholder="Enter event text" disabled>
   <button id="sendEventBtn" disabled>Send Event</button>
   <p id="status">Status: Not connected</p>
-  <div id="eventsContainer"></div>
+  <!-- <div id="eventsContainer"></div> -->
 
   <!-- New div for file input and upload button -->
   <div>
@@ -21,7 +22,7 @@
   </div>
 
   <!-- Image display area -->
-  <div>
+  <div id="imageContainer">
     <img id="uploadedImage" src="" alt="Uploaded Image" style="display:none; max-width: 100%;">
   </div>
 

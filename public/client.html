@@ -13,6 +13,18 @@
   <button id="sendEventBtn" disabled>Send Event</button>
   <p id="status">Status: Not connected</p>
   <div id="eventsContainer"></div>
+
+  <!-- New div for file input and upload button -->
+  <div>
+    <input type="file" id="imageUpload" accept="image/*" disabled>
+    <button id="uploadImageBtn" disabled>Upload Image</button>
+  </div>
+
+  <!-- Image display area -->
+  <div>
+    <img id="uploadedImage" src="" alt="Uploaded Image" style="display:none; max-width: 100%;">
+  </div>
+
   <script>
     const startBtn = document.getElementById("startBtn");
     const stopBtn = document.getElementById("stopBtn");
@@ -98,6 +110,8 @@
       stopBtn.disabled = false;
       sendEventBtn.disabled = false;
       document.getElementById("eventTextInput").disabled = false;
+      imageUpload.disabled = false;
+      uploadImageBtn.disabled = false;
     }
 
     function stopRecording() {
@@ -114,6 +128,8 @@
       stopBtn.disabled = true;
       sendEventBtn.disabled = true;
       document.getElementById("eventTextInput").disabled = true;
+      imageUpload.disabled = true;
+      uploadImageBtn.disabled = true;
     }
 
     // Button Event Listeners
@@ -144,6 +160,47 @@
         console.log("Client event sent with text:", eventTextInput);
       } else {
         console.error("Data channel is not open");
+      }
+    });
+
+    const uploadImageBtn = document.getElementById("uploadImageBtn");
+    const imageUpload = document.getElementById("imageUpload");
+
+    uploadImageBtn.addEventListener("click", () => {
+      const file = imageUpload.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          const imageData = event.target.result;
+          // Display the uploaded image
+          const uploadedImage = document.getElementById('uploadedImage');
+          uploadedImage.src = imageData;
+          uploadedImage.style.display = 'block';
+          console.log("Image uploaded:", imageData);
+
+          fetch("http://localhost:3000/upload-image", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ image: imageData })
+          })
+          .then(response => response.json())
+          .then(data => {
+            console.log("Response from server:", data);
+
+            // Display the response below the uploaded image
+            const responseElement = document.createElement('p');
+            responseElement.textContent = `Server response: ${JSON.stringify(data.choices[0].message.content)}`;
+            uploadedImage.parentNode.appendChild(responseElement);
+          })
+          .catch(error => {
+            console.error("Error sending image to server:", error);
+          });
+        };
+        reader.readAsDataURL(file);
+      } else {
+        console.error("No image selected");
       }
     });
   </script>

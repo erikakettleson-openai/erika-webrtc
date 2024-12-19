@@ -8,15 +8,18 @@
 </head>
 <body>
   <h1>OpenAI Realtime API with WebRTC</h1>
-  <button id="startBtn">Start Session</button>
-  <button id="stopBtn" disabled>Stop Session</button>
+  <button id="startBtn">Connect</button>
+  <button id="stopBtn" disabled>Disconnect</button>
   <p id="status">Status: Not connected</p>
   <div>
     <input type="text" id="eventTextInput" placeholder="Enter text for a conversation.item.create user event" disabled>
     <button id="sendEventBtn" disabled>Send Event</button>
   </div>
   
-  
+  <div>
+    <input type="text" id="instructionTextInput" placeholder="Enter new system prompt">
+    <button id="updateInstructionsBtn">Update System Prompt</button>
+  </div>
   
   <div id="eventsContainer"></div>
 
@@ -33,6 +36,8 @@
   <div id="imageContainer">
     <img id="uploadedImage" src="" alt="Uploaded Image" style="display:none; max-width: 100%;">
   </div>
+
+
 
   <script>
     const startBtn = document.getElementById("startBtn");
@@ -150,7 +155,7 @@
       const eventTextInput = document.getElementById("eventTextInput").value;
       if (dataChannel && dataChannel.readyState === "open") {
         const clientEvent = {
-          event_id: "event_345",
+          event_id: "event_onsendEventBtnclick",
           type: "conversation.item.create",
           previous_item_id: null,
           item: {
@@ -207,19 +212,10 @@
             // Send the image description as an event
             if (dataChannel && dataChannel.readyState === "open") {
               const imageEvent = {
-                event_id: "event_346",
-                type: "conversation.item.create",
-                previous_item_id: null,
-                item: {
-                  id: "img_desc_001",
-                  type: "message",
-                  role: "user",
-                  content: [
-                    {
-                      type: "input_text",
-                      text: imageDescription
-                    }
-                  ]
+                event_id: "event_omimageupload",
+                type: "response.create",
+                "response": {
+                    "instructions": `Please assist the user by describing this image: ${imageDescription}`,
                 }
               };
               dataChannel.send(JSON.stringify(imageEvent));
@@ -235,6 +231,44 @@
         reader.readAsDataURL(file);
       } else {
         console.error("No image selected");
+      }
+    });
+
+    const updateInstructionsBtn = document.getElementById("updateInstructionsBtn");
+    const instructionTextInput = document.getElementById("instructionTextInput");
+
+    updateInstructionsBtn.addEventListener("click", () => {
+      const newInstructions = instructionTextInput.value;
+      if (dataChannel && dataChannel.readyState === "open") {
+        const updateEvent = {
+          event_id: "event_123",
+          type: "session.update",
+          session: {
+            instructions: newInstructions, // Use the new instructions from the input
+
+            // tools: [
+            //   {
+            //     type: "function",
+            //     name: "get_weather",
+            //     description: "Get the current weather...",
+            //     parameters: {
+            //       type: "object",
+            //       properties: {
+            //         location: { type: "string" }
+            //       },
+            //       required: ["location"]
+            //     }
+            //   }
+            // ],
+            // tool_choice: "auto",
+            // temperature: 0.8,
+            // max_response_output_tokens: "inf"
+          }
+        };
+        dataChannel.send(JSON.stringify(updateEvent));
+        console.log("Session update event sent with new instructions:", newInstructions);
+      } else {
+        console.error("Data channel is not open");
       }
     });
   </script>

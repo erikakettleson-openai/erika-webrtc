@@ -52,7 +52,7 @@ app.post("/upload-image", async (req, res) => {
             content: [
               {
                 type: "text",
-                text: "What is in this image? Describe in detail for at least 100 words.",
+                text: "What is in this image? Describe in detail for at least 50 words.",
               },
               {
                 type: "image_url",

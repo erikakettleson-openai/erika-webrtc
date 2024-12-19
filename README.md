@@ -1,1 +1,5 @@
-<!-- run node server.js and open http://localhost:3000/client.html in browser -->
+run node server.js  
+
+open http://localhost:3000/client.html
+
+

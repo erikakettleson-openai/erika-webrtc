@@ -10,14 +10,22 @@
   <h1>OpenAI Realtime API with WebRTC</h1>
   <button id="startBtn">Start Session</button>
   <button id="stopBtn" disabled>Stop Session</button>
-  <input type="text" id="eventTextInput" placeholder="Enter event text" disabled>
-  <button id="sendEventBtn" disabled>Send Event</button>
   <p id="status">Status: Not connected</p>
-  <!-- <div id="eventsContainer"></div> -->
+  <div>
+    <input type="text" id="eventTextInput" placeholder="Enter text for a conversation.item.create user event" disabled>
+    <button id="sendEventBtn" disabled>Send Event</button>
+  </div>
+  
+  
+  
+  <div id="eventsContainer"></div>
 
   <!-- New div for file input and upload button -->
   <div>
     <input type="file" id="imageUpload" accept="image/*" disabled>
+  </div>
+
+  <div>
     <button id="uploadImageBtn" disabled>Upload Image</button>
   </div>
 
@@ -68,14 +76,14 @@
           const realtimeEvent = JSON.parse(e.data);
           console.log("Received event:", realtimeEvent);
 
-          // Filter out unwanted events
           if (realtimeEvent.type === "response.audio_transcript.delta") {
-            return; // Skip displaying this event
+            return;
           }
 
           // Display the event on the page at the top
-          const eventElement = document.createElement("p");
-          eventElement.textContent = `Received event: ${JSON.stringify(realtimeEvent)}`;
+          const eventElement = document.createElement("pre");
+          eventElement.className = "json-format";
+          eventElement.textContent = `Received event: ${JSON.stringify(realtimeEvent, null, 2)}`;
           eventsContainer.insertBefore(eventElement, eventsContainer.firstChild);
         });
 
@@ -192,8 +200,33 @@
 
             // Display the response below the uploaded image
             const responseElement = document.createElement('p');
-            responseElement.textContent = `Server response: ${JSON.stringify(data.choices[0].message.content)}`;
+            const imageDescription = data.choices[0].message.content;
+            responseElement.textContent = `Server response: ${imageDescription}`;
             uploadedImage.parentNode.appendChild(responseElement);
+
+            // Send the image description as an event
+            if (dataChannel && dataChannel.readyState === "open") {
+              const imageEvent = {
+                event_id: "event_346",
+                type: "conversation.item.create",
+                previous_item_id: null,
+                item: {
+                  id: "img_desc_001",
+                  type: "message",
+                  role: "user",
+                  content: [
+                    {
+                      type: "input_text",
+                      text: imageDescription
+                    }
+                  ]
+                }
+              };
+              dataChannel.send(JSON.stringify(imageEvent));
+              console.log("Image description event sent:", imageDescription);
+            } else {
+              console.error("Data channel is not open");
+            }
           })
           .catch(error => {
             console.error("Error sending image to server:", error);

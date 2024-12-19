@@ -8,9 +8,11 @@
 </head>
 <body>
   <h1>OpenAI Realtime API with WebRTC</h1>
+
   <button id="startBtn">Connect</button>
   <button id="stopBtn" disabled>Disconnect</button>
   <p id="status">Status: Not connected</p>
+
   <div>
     <input type="text" id="eventTextInput" placeholder="Enter text for a conversation.item.create user event" disabled>
     <button id="sendEventBtn" disabled>Send Conversation Event</button>
@@ -21,7 +23,6 @@
     <button id="updateInstructionsBtn">Update System Prompt</button>
   </div>
   
-  <div id="eventsContainer"></div>
 
   <!-- New div for file input and upload button -->
   <div>
@@ -37,240 +38,9 @@
     <img id="uploadedImage" src="" alt="Uploaded Image" style="display:none; max-width: 100%;">
   </div>
 
+  <div id="eventsContainer"></div>
 
-
-  <script>
-    const startBtn = document.getElementById("startBtn");
-    const stopBtn = document.getElementById("stopBtn");
-    const statusEl = document.getElementById("status");
-
-    let pc; // WebRTC PeerConnection
-    let dataChannel; // WebRTC Data Channel
-    let localStream;
-
-    async function init() {
-      try {
-        statusEl.textContent = "Fetching session...";
-        // Step 1: Fetch ephemeral key from server
-        const tokenResponse = await fetch("http://localhost:3000/session");
-        const data = await tokenResponse.json();
-        const EPHEMERAL_KEY = data.client_secret.value;
-
-        // Step 2: Set up WebRTC connection
-        pc = new RTCPeerConnection();
-
-        // Handle remote audio track
-        const audioEl = document.createElement("audio");
-        audioEl.autoplay = true;
-        pc.ontrack = (e) => audioEl.srcObject = e.streams[0];
-        document.body.appendChild(audioEl);
-
-        // Step 3: Capture user audio
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        pc.addTrack(localStream.getTracks()[0]);
-
-        // Step 4: Create Data Channel for sending/receiving messages
-        dataChannel = pc.createDataChannel("oai-events");
-
-        // Create a container for displaying events
-        const eventsContainer = document.createElement("div");
-        eventsContainer.id = "eventsContainer";
-        document.body.appendChild(eventsContainer);
-
-        dataChannel.addEventListener("message", (e) => {
-          const realtimeEvent = JSON.parse(e.data);
-          console.log("Received event:", realtimeEvent);
-
-          if (realtimeEvent.type === "response.audio_transcript.delta") {
-            return;
-          }
-
-          // Display the event on the page at the top
-          const eventElement = document.createElement("pre");
-          eventElement.className = "json-format";
-          eventElement.textContent = `Received event: ${JSON.stringify(realtimeEvent, null, 2)}`;
-          eventsContainer.insertBefore(eventElement, eventsContainer.firstChild);
-        });
-
-        // Step 5: SDP Negotiation
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-
-        const model = "gpt-4o-realtime-preview-2024-12-17";
-        const baseUrl = "https://api.openai.com/v1/realtime";
-
-        const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
-          method: "POST",
-          body: offer.sdp,
-          headers: {
-            Authorization: `Bearer ${EPHEMERAL_KEY}`,
-            "Content-Type": "application/sdp",
-          },
-        });
-
-        const answer = { type: "answer", sdp: await sdpResponse.text() };
-        await pc.setRemoteDescription(answer);
-
-        statusEl.textContent = "Connected to Realtime API!";
-      } catch (err) {
-        console.error("Error initializing connection:", err);
-        statusEl.textContent = "Error connecting!";
-      }
-    }
-
-    function startRecording() {
-      init();
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
-      sendEventBtn.disabled = false;
-      document.getElementById("eventTextInput").disabled = false;
-      imageUpload.disabled = false;
-      uploadImageBtn.disabled = false;
-    }
-
-    function stopRecording() {
-      // Clean up WebRTC connection
-      if (pc) {
-        pc.close();
-        pc = null;
-      }
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
-      statusEl.textContent = "Connection closed.";
-      startBtn.disabled = false;
-      stopBtn.disabled = true;
-      sendEventBtn.disabled = true;
-      document.getElementById("eventTextInput").disabled = true;
-      imageUpload.disabled = true;
-      uploadImageBtn.disabled = true;
-    }
-
-    // Button Event Listeners
-    startBtn.addEventListener("click", startRecording);
-    stopBtn.addEventListener("click", stopRecording);
-
-    const sendEventBtn = document.getElementById("sendEventBtn");
-    sendEventBtn.addEventListener("click", () => {
-      const eventTextInput = document.getElementById("eventTextInput").value;
-      if (dataChannel && dataChannel.readyState === "open") {
-        const clientEvent = {
-          event_id: "event_onsendEventBtnclick",
-          type: "conversation.item.create",
-          previous_item_id: null,
-          item: {
-            id: "msg_001",
-            type: "message",
-            role: "user",
-            content: [
-              {
-                type: "input_text",
-                text: eventTextInput
-              }
-            ]
-          }
-        };
-        dataChannel.send(JSON.stringify(clientEvent));
-        console.log("Client event sent with text:", eventTextInput);
-      } else {
-        console.error("Data channel is not open");
-      }
-    });
-
-    const uploadImageBtn = document.getElementById("uploadImageBtn");
-    const imageUpload = document.getElementById("imageUpload");
-
-    uploadImageBtn.addEventListener("click", () => {
-      const file = imageUpload.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = function(event) {
-          const imageData = event.target.result;
-          // Display the uploaded image
-          const uploadedImage = document.getElementById('uploadedImage');
-          uploadedImage.src = imageData;
-          uploadedImage.style.display = 'block';
-          console.log("Image uploaded:", imageData);
-
-          fetch("http://localhost:3000/upload-image", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ image: imageData })
-          })
-          .then(response => response.json())
-          .then(data => {
-            console.log("Response from server:", data);
-
-            // Display the response below the uploaded image
-            const responseElement = document.createElement('p');
-            const imageDescription = data.choices[0].message.content;
-            responseElement.textContent = `Server response: ${imageDescription}`;
-            uploadedImage.parentNode.appendChild(responseElement);
-
-            // Send the image description as an event
-            if (dataChannel && dataChannel.readyState === "open") {
-              const imageEvent = {
-                event_id: "event_omimageupload",
-                type: "response.create",
-                "response": {
-                    "instructions": `Please assist the user by describing this image: ${imageDescription}`,
-                }
-              };
-              dataChannel.send(JSON.stringify(imageEvent));
-              console.log("Image description event sent:", imageDescription);
-            } else {
-              console.error("Data channel is not open");
-            }
-          })
-          .catch(error => {
-            console.error("Error sending image to server:", error);
-          });
-        };
-        reader.readAsDataURL(file);
-      } else {
-        console.error("No image selected");
-      }
-    });
-
-    const updateInstructionsBtn = document.getElementById("updateInstructionsBtn");
-    const instructionTextInput = document.getElementById("instructionTextInput");
-
-    updateInstructionsBtn.addEventListener("click", () => {
-      const newInstructions = instructionTextInput.value;
-      if (dataChannel && dataChannel.readyState === "open") {
-        const updateEvent = {
-          event_id: "event_123",
-          type: "session.update",
-          session: {
-            instructions: newInstructions, // Use the new instructions from the input
-
-            // tools: [
-            //   {
-            //     type: "function",
-            //     name: "get_weather",
-            //     description: "Get the current weather...",
-            //     parameters: {
-            //       type: "object",
-            //       properties: {
-            //         location: { type: "string" }
-            //       },
-            //       required: ["location"]
-            //     }
-            //   }
-            // ],
-            // tool_choice: "auto",
-            // temperature: 0.8,
-            // max_response_output_tokens: "inf"
-          }
-        };
-        dataChannel.send(JSON.stringify(updateEvent));
-        console.log("Session update event sent with new instructions:", newInstructions);
-      } else {
-        console.error("Data channel is not open");
-      }
-    });
-  </script>
+  <!-- External JavaScript file -->
+  <script src="app.js"></script>
 </body>
 </html>

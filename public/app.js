@@ -9,6 +9,10 @@ const imageUpload = document.getElementById("imageUpload");
 const uploadImageBtn = document.getElementById("uploadImageBtn");
 const uploadedImage = document.getElementById("uploadedImage");
 const eventsContainer = document.getElementById("eventsContainer");
+const toolsTextInput = document.getElementById("toolsTextInput");
+const updateToolsBtn = document.getElementById("updateToolsBtn");
+const responseTextInput = document.getElementById("responseTextInput");
+const sendResponseBtn = document.getElementById("sendResponseBtn");
 
 let pc; // WebRTC PeerConnection
 let dataChannel; // WebRTC Data Channel
@@ -45,6 +49,14 @@ async function init() {
       if (realtimeEvent.type === "response.audio_transcript.delta") {
         return;
       }
+      // const responseCreate = {
+      //   type: "response.create",
+      //   response: {
+      //     modalities: ["text"],
+      //     instructions: "Write a haiku about code",
+      //   },
+      // };
+      // dataChannel.send(JSON.stringify(responseCreate));
 
       // Display the event on the page at the top
       const eventElement = document.createElement("pre");
@@ -167,7 +179,7 @@ function uploadImage() {
           event_id: "event_omimageupload",
           type: "response.create",
           "response": {
-              "instructions": `Please assist the user by describing this image: ${imageDescription}`,
+              "instructions": `Please assist the user by describing this image: ${imageDescription}. Do not allow the user to interrupt as you describe the image.`,
           }
         };
         dataChannel.send(JSON.stringify(imageEvent));
@@ -201,9 +213,102 @@ function updateInstructions() {
   }
 }
 
+// example tools to add in the UI for updateTools:
+// [
+//   {
+//     "type": "function",
+//     "name": "handoff_to_agent",
+//     "description": "Indicates if the conversation should be handed off to an agent. Call this if the user requests a human agent or seems like they need more help or if they are upset.",
+//     "parameters": {
+//       "type": "object",
+//       "properties": {
+//         "reason_for_handoff": {
+//           "type": "string",
+//           "description": "The reason for handing off the conversation to an agent."
+//         }
+//       },
+//       "required": ["reason_for_handoff"]
+//     }
+//   }
+// ]
+// [
+//   {
+//     "type": "function",
+//     "name": "return_item",
+//     "description": "Indicates if the user wants to return an item. Call this if the user requests to return an item to the store.",
+//     "parameters": {
+//       "type": "object",
+//       "properties": {
+//         "reason_for_return": {
+//           "type": "string",
+//           "description": "The reason for returning the item."
+//         }
+//       },
+//       "required": ["reason_for_return"]
+//     }
+//   }
+// ]
+
+
+function updateTools() {
+  const newTools = toolsTextInput.value;
+  let parsedTools;
+
+  try {
+    parsedTools = JSON.parse(newTools);
+  } catch (error) {
+    console.error("Invalid JSON input for tools:", error);
+    return;
+  }
+
+  if (dataChannel && dataChannel.readyState === "open") {
+    const updateEvent = {
+      event_id: "event_456",
+      type: "session.update",
+      session: {
+        tools: parsedTools,
+        // Other session parameters can be included here if desired
+      }
+    };
+    dataChannel.send(JSON.stringify(updateEvent));
+    console.log("Session update event sent with new tools:", parsedTools);
+  } else {
+    console.error("Data channel is not open");
+  }
+}
+
+// currently this fxn is set up to send a response event with tools - update it to send a response event with instructions
+function sendResponse() {
+  const responseText = responseTextInput.value;
+  const newTools = responseTextInput.value;
+  let parsedTools;
+  try {
+    parsedTools = JSON.parse(newTools);
+  } catch (error) {
+    console.error("Invalid JSON input for tools:", error);
+    return;
+  }
+  if (dataChannel && dataChannel.readyState === "open") {
+    const responseEvent = {
+      event_id: "event_response_create",
+      type: "response.create",
+      response: {
+        instructions: `Please respond with the following: ${responseText}`,
+        // tools: parsedTools,
+      }
+    };
+    dataChannel.send(JSON.stringify(responseEvent));
+    console.log("Response event sent with text:", responseText);
+  } else {
+    console.error("Data channel is not open");
+  }
+}
+
 // Button Event Listeners
 startBtn.addEventListener("click", startRecording);
 stopBtn.addEventListener("click", stopRecording);
 sendEventBtn.addEventListener("click", sendClientEvent);
 uploadImageBtn.addEventListener("click", uploadImage);
 updateInstructionsBtn.addEventListener("click", updateInstructions);
+updateToolsBtn.addEventListener("click", updateTools);
+sendResponseBtn.addEventListener("click", sendResponse);
